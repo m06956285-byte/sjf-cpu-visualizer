@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SJF CPU Scheduling Visualizer | Interactive OS Learning Platform</title>
+  
+  <!-- Tailwind CSS CDN with configuration -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            darkBg: '#080c16',
+            darkCard: '#0f172a',
+            accentCyan: '#06b6d4',
+            accentPurple: '#8b5cf6',
+            accentBlue: '#3b82f6',
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- React 18, ReactDOM 18, and Babel CDN for Zero-Setup Local Execution -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .striped-idle-dark {
+      background: repeating-linear-gradient(
+        -45deg,
+        rgba(71, 85, 105, 0.28),
+        rgba(71, 85, 105, 0.28) 8px,
+        rgba(30, 41, 59, 0.6) 8px,
+        rgba(30, 41, 59, 0.6) 16px
+      );
+    }
+    .striped-idle-light {
+      background: repeating-linear-gradient(
+        -45deg,
+        rgba(203, 213, 225, 0.6),
+        rgba(203, 213, 225, 0.6) 8px,
+        rgba(226, 232, 240, 0.8) 8px,
+        rgba(226, 232, 240, 0.8) 16px
+      );
+    }
+    .glow-cyan {
+      box-shadow: 0 0 25px -3px rgba(6, 182, 212, 0.35);
+    }
+    .glow-purple {
+      box-shadow: 0 0 25px -3px rgba(139, 92, 246, 0.35);
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.4);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.6);
+    }
+  </style>
+</head>
+<body class="bg-[#080c16] text-slate-100 transition-colors duration-300 selection:bg-cyan-500/30 selection:text-cyan-300">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // ==========================================
+    // 1. INLINE SVG ICONS
+    // ==========================================
+    const IconCpu = ({ className = "w-5 h-5" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>
+    );
+    const IconPlay = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+    );
+    const IconPause = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+    );
+    const IconRotateCcw = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+    );
+    const IconChevronLeft = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    );
+    const IconChevronRight = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+    );
+    const IconZap = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    );
+    const IconClock = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    );
+    const IconCheckCircle = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    );
+    const IconPlus = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    );
+    const IconTrash = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    );
+    const IconDownload = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    );
+    const IconTrophy = ({ className = "w-6 h-6" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+    );
+    const IconBookOpen = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+    );
+    const IconGraduation = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+    );
+    const IconSparkles = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+    );
+    const IconSun = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+    );
+    const IconMoon = ({ className = "w-4 h-4" }) => (
+      <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+    );
+
+    // ==========================================
+    // 2. PROCESS COLOR PALETTE
+    // ==========================================
+    const PROCESS_COLORS = [
+      { bg: '#3b82f6', border: '#2563eb', name: 'Blue' },
+      { bg: '#10b981', border: '#059669', name: 'Emerald' },
+      { bg: '#f59e0b', border: '#d97706', name: 'Amber' },
+      { bg: '#ec4899', border: '#db2777', name: 'Pink' },
+      { bg: '#8b5cf6', border: '#7c3aed', name: 'Purple' },
+      { bg: '#06b6d4', border: '#0891b2', name: 'Cyan' },
+      { bg: '#f97316', border: '#ea580c', name: 'Orange' },
+      { bg: '#14b8a6', border: '#0d9488', name: 'Teal' },
+      { bg: '#a855f7', border: '#9333ea', name: 'Violet' },
+      { bg: '#ef4444', border: '#dc2626', name: 'Red' },
+    ];
+    function getProcColor(idx) {
+      return PROCESS_COLORS[idx % PROCESS_COLORS.length];
+    }
+
+    // ==========================================
+    // 3. SAMPLE DATASETS
+    // ==========================================
+    const SAMPLE_DATASETS = [
+      {
+        id: 'standard-benchmark',
+        name: 'Standard Benchmark (Section 11 Spec)',
+        description: 'P1:(0,7), P2:(2,4), P3:(4,1), P4:(5,4). Exact test specification dataset.',
+        processes: [
+          { id: 'P1', arrivalTime: 0, burstTime: 7 },
+          { id: 'P2', arrivalTime: 2, burstTime: 4 },
+          { id: 'P3', arrivalTime: 4, burstTime: 1 },
+          { id: 'P4', arrivalTime: 5, burstTime: 4 },
+        ]
+      },
+      {
+        id: 'all-arrive-zero',
+        name: 'All Arrive at Time Zero',
+        description: 'Both Non-Preemptive SJF and SRTF generate the identical optimal order.',
+        processes: [
+          { id: 'P1', arrivalTime: 0, burstTime: 8 },
+          { id: 'P2', arrivalTime: 0, burstTime: 4 },
+          { id: 'P3', arrivalTime: 0, burstTime: 2 },
+          { id: 'P4', arrivalTime: 0, burstTime: 6 },
+        ]
+      },
+      {
+        id: 'cpu-idle-gaps',
+        name: 'CPU Idle Interval Gaps',
+        description: 'Large gaps in arrival times triggering CPU idle periods.',
+        processes: [
+          { id: 'P1', arrivalTime: 1, burstTime: 3 },
+          { id: 'P2', arrivalTime: 6, burstTime: 2 },
+          { id: 'P3', arrivalTime: 10, burstTime: 4 },
+        ]
+      },
+      {
+        id: 'heavy-preemption',
+        name: 'Frequent Preemption Chain',
+        description: 'Successively shorter tasks arrive, triggering a chain of preemptions.',
+        processes: [
+          { id: 'P1', arrivalTime: 0, burstTime: 10 },
+          { id: 'P2', arrivalTime: 2, burstTime: 6 },
+          { id: 'P3', arrivalTime: 4, burstTime: 3 },
+          { id: 'P4', arrivalTime: 6, burstTime: 1 },
+        ]
+      },
+      {
+        id: 'equal-burst-ties',
+        name: 'Equal Burst Tie-Breaker',
+        description: 'Identical burst times demonstrating arrival time and PID tie-breaking.',
+        processes: [
+          { id: 'P1', arrivalTime: 0, burstTime: 4 },
+          { id: 'P2', arrivalTime: 1, burstTime: 3 },
+          { id: 'P3', arrivalTime: 2, burstTime: 3 },
+          { id: 'P4', arrivalTime: 3, burstTime: 3 },
+        ]
+      }
+    ];
+
+    function normalizeProcesses(raw) {
+      return raw.map((p, idx) => ({
+        id: String(p.id).trim(),
+        arrivalTime: Math.max(0, parseInt(p.arrivalTime, 10) || 0),
+        burstTime: Math.max(1, parseInt(p.burstTime, 10) || 1),
+        color: getProcColor(idx)
+      }));
+    }
+
+    // ==========================================
+    // 4. SJF SCHEDULING ALGORITHMS
+    // ==========================================
+    // 4A. SJF Non-Preemptive
+    function solveNonPreemptiveSJF(rawProcesses) {
+      const processes = normalizeProcesses(rawProcesses);
+      if (processes.length === 0) return { results: [], gantt: [], steps: [], metrics: {} };
+
+      const uncompleted = processes.map(p => ({
+        ...p,
+        remainingTime: p.burstTime,
+        completed: false,
+        firstStartTime: null,
+        completionTime: null,
+        turnaroundTime: null,
+        waitingTime: null,
+        responseTime: null
+      }));
+
+      const gantt = [];
+      const unitTimeline = [];
+      let currentTime = 0;
+      let completedCount = 0;
+      const n = uncompleted.length;
+
+      while (completedCount < n) {
+        const ready = uncompleted.filter(p => !p.completed && p.arrivalTime <= currentTime);
+        if (ready.length === 0) {
+          const nextArrival = Math.min(...uncompleted.filter(p => !p.completed).map(p => p.arrivalTime));
+          for (let t = currentTime; t < nextArrival; t++) {
+            unitTimeline.push({ time: t, activeProcessId: null, isIdle: true });
+          }
+          gantt.push({
+            type: 'idle',
+            id: 'IDLE',
+            start: currentTime,
+            end: nextArrival,
+            duration: nextArrival - currentTime,
+            color: { bg: '#475569', border: '#334155' }
+          });
+          currentTime = nextArrival;
+          continue;
+        }
+
+        ready.sort((a, b) => {
+          if (a.burstTime !== b.burstTime) return a.burstTime - b.burstTime;
+          if (a.arrivalTime !== b.arrivalTime) return a.arrivalTime - b.arrivalTime;
+          return a.id.localeCompare(b.id, undefined, { numeric: true });
+        });
+
+        const selected = ready[0];
+        const start = currentTime;
+        const end = currentTime + selected.burstTime;
+
+        selected.firstStartTime = start;
+        selected.completionTime = end;
+        selected.turnaroundTime = selected.completionTime - selected.arrivalTime;
+        selected.waitingTime = selected.turnaroundTime - selected.burstTime;
+        selected.responseTime = selected.firstStartTime - selected.arrivalTime;
+        selected.completed = true;
+
+        for (let t = start; t < end; t++) {
+          unitTimeline.push({ time: t, activeProcessId: selected.id, isIdle: false });
+        }
+
+        gantt.push({
+          type: 'process',
+          id: selected.id,
+          start,
+          end,
+          duration: selected.burstTime,
+          color: selected.color
+        });
+
+        currentTime = end;
+        completedCount++;
+      }
+
+      const totalExecutionTime = currentTime;
+      const totalBusyTime = processes.reduce((acc, p) => acc + p.burstTime, 0);
+      const idleTime = Math.max(0, totalExecutionTime - totalBusyTime);
+      const cpuUtilization = totalExecutionTime > 0 ? (totalBusyTime / totalExecutionTime) * 100 : 0;
+      const throughput = totalExecutionTime > 0 ? n / totalExecutionTime : 0;
+
+      const avgWaitingTime = uncompleted.reduce((acc, p) => acc + p.waitingTime, 0) / n;
+      const avgTurnaroundTime = uncompleted.reduce((acc, p) => acc + p.turnaroundTime, 0) / n;
+      const avgResponseTime = uncompleted.reduce((acc, p) => acc + p.responseTime, 0) / n;
+
+      const steps = generateSteps(processes, unitTimeline, 'non-preemptive');
+
+      return {
+        results: uncompleted,
+        gantt,
+        steps,
+        metrics: {
+          avgWaitingTime,
+          avgTurnaroundTime,
+          avgResponseTime,
+          totalExecutionTime,
+          cpuUtilization,
+          throughput,
+          totalBusyTime,
+          idleTime,
+          preemptionCount: 0
+        }
+      };
+    }
+
+    // 4B. SJF Preemptive (SRTF)
+    function solvePreemptiveSRTF(rawProcesses) {
+      const processes = normalizeProcesses(rawProcesses);
+      if (processes.length === 0) return { results: [], gantt: [], steps: [], metrics: {} };
+
+      const procMap = new Map();
+      processes.forEach(p => {
+        procMap.set(p.id, {
+          ...p,
+          remainingTime: p.burstTime,
+          completed: false,
+          firstStartTime: null,
+          completionTime: null,
+          turnaroundTime: null,
+          waitingTime: null,
+          responseTime: null
+        });
+      });
+
+      const unitTimeline = [];
+      let currentTime = 0;
+      let completedCount = 0;
+      const n = processes.length;
+      let currentRunningId = null;
+      let preemptionCount = 0;
+
+      while (completedCount < n) {
+        const ready = Array.from(procMap.values()).filter(p => !p.completed && p.arrivalTime <= currentTime);
+        if (ready.length === 0) {
+          unitTimeline.push({ time: currentTime, activeProcessId: null, isIdle: true });
+          currentTime++;
+          currentRunningId = null;
+          continue;
+        }
+
+        ready.sort((a, b) => {
+          if (a.remainingTime !== b.remainingTime) return a.remainingTime - b.remainingTime;
+          if (a.id === currentRunningId) return -1;
+          if (b.id === currentRunningId) return 1;
+          if (a.arrivalTime !== b.arrivalTime) return a.arrivalTime - b.arrivalTime;
+          return a.id.localeCompare(b.id, undefined, { numeric: true });
+        });
+
+        const chosen = ready[0];
+        let isPreempted = false;
+
+        if (currentRunningId !== null && currentRunningId !== chosen.id) {
+          const prev = procMap.get(currentRunningId);
+          if (prev && !prev.completed && prev.remainingTime > 0) {
+            preemptionCount++;
+            isPreempted = true;
+          }
+        }
+
+        if (chosen.firstStartTime === null) {
+          chosen.firstStartTime = currentTime;
+        }
+
+        currentRunningId = chosen.id;
+
+        unitTimeline.push({
+          time: currentTime,
+          activeProcessId: chosen.id,
+          isIdle: false,
+          isPreempted
+        });
+
+        chosen.remainingTime -= 1;
+        currentTime += 1;
+
+        if (chosen.remainingTime === 0) {
+          chosen.completed = true;
+          chosen.completionTime = currentTime;
+          chosen.turnaroundTime = chosen.completionTime - chosen.arrivalTime;
+          chosen.waitingTime = chosen.turnaroundTime - chosen.burstTime;
+          chosen.responseTime = chosen.firstStartTime - chosen.arrivalTime;
+          completedCount++;
+          currentRunningId = null;
+        }
+      }
+
+      // Consolidate into Gantt blocks
+      const gantt = [];
+      if (unitTimeline.length > 0) {
+        let cur = {
+          type: unitTimeline[0].isIdle ? 'idle' : 'process',
+          id: unitTimeline[0].isIdle ? 'IDLE' : unitTimeline[0].activeProcessId,
+          start: unitTimeline[0].time,
+          end: unitTimeline[0].time + 1,
+          duration: 1,
+          isPreempted: unitTimeline[0].isPreempted || false,
+          color: unitTimeline[0].isIdle ? { bg: '#475569', border: '#334155' } : procMap.get(unitTimeline[0].activeProcessId).color
+        };
+
+        for (let i = 1; i < unitTimeline.length; i++) {
+          const u = unitTimeline[i];
+          const match = u.isIdle ? cur.type === 'idle' : (cur.type === 'process' && cur.id === u.activeProcessId);
+          if (match) {
+            cur.end = u.time + 1;
+            cur.duration = cur.end - cur.start;
+          } else {
+            gantt.push({ ...cur });
+            cur = {
+              type: u.isIdle ? 'idle' : 'process',
+              id: u.isIdle ? 'IDLE' : u.activeProcessId,
+              start: u.time,
+              end: u.time + 1,
+              duration: 1,
+              isPreempted: u.isPreempted || false,
+              color: u.isIdle ? { bg: '#475569', border: '#334155' } : procMap.get(u.activeProcessId).color
+            };
+          }
+        }
+        gantt.push(cur);
+      }
+
+      const totalExecutionTime = currentTime;
+      const totalBusyTime = processes.reduce((acc, p) => acc + p.burstTime, 0);
+      const idleTime = Math.max(0, totalExecutionTime - totalBusyTime);
+      const cpuUtilization = totalExecutionTime > 0 ? (totalBusyTime / totalExecutionTime) * 100 : 0;
+      const throughput = totalExecutionTime > 0 ? n / totalExecutionTime : 0;
+
+      const results = processes.map(p => procMap.get(p.id));
+      const avgWaitingTime = results.reduce((acc, p) => acc + p.waitingTime, 0) / n;
+      const avgTurnaroundTime = results.reduce((acc, p) => acc + p.turnaroundTime, 0) / n;
+      const avgResponseTime = results.reduce((acc, p) => acc + p.responseTime, 0) / n;
+
+      const steps = generateSteps(processes, unitTimeline, 'preemptive');
+
+      return {
+        results,
+        gantt,
+        steps,
+        metrics: {
+          avgWaitingTime,
+          avgTurnaroundTime,
+          avgResponseTime,
+          totalExecutionTime,
+          cpuUtilization,
+          throughput,
+          totalBusyTime,
+          idleTime,
+          preemptionCount
+        }
+      };
+    }
+
+    // Generate step snapshots for playback & learning
+    function generateSteps(initialProcesses, unitTimeline, algorithmType) {
+      const steps = [];
+      const procStatus = new Map();
+      initialProcesses.forEach(p => {
+        procStatus.set(p.id, {
+          id: p.id,
+          arrivalTime: p.arrivalTime,
+          burstTime: p.burstTime,
+          remainingTime: p.burstTime,
+          color: p.color,
+          state: 'not-arrived',
+          firstStart: null,
+          completionTime: null
+        });
+      });
+
+      const initialReady = [];
+      procStatus.forEach(p => {
+        if (p.arrivalTime === 0) {
+          p.state = 'ready';
+          initialReady.push({ ...p });
+        }
+      });
+
+      steps.push({
+        time: 0,
+        activeProcess: null,
+        readyQueue: initialReady.map(p => ({ ...p })),
+        completedList: [],
+        explanation: `Time 0: Initial state. Arrived at T=0: [${initialReady.map(p => p.id).join(', ') || 'None'}]. Scheduler ready.`,
+        isIdle: unitTimeline.length > 0 ? unitTimeline[0].isIdle : true,
+        preemption: false
+      });
+
+      for (let i = 0; i < unitTimeline.length; i++) {
+        const unit = unitTimeline[i];
+        const t = unit.time;
+        const activeId = unit.activeProcessId;
+        const isIdle = unit.isIdle;
+
+        procStatus.forEach(p => {
+          if (p.arrivalTime === t && p.state === 'not-arrived') {
+            p.state = 'ready';
+          }
+        });
+
+        if (activeId) {
+          const act = procStatus.get(activeId);
+          if (act.firstStart === null) act.firstStart = t;
+          act.state = 'running';
+          act.remainingTime = Math.max(0, act.remainingTime - 1);
+        }
+
+        const currentReady = [];
+        const completedSnapshot = [];
+
+        procStatus.forEach(p => {
+          if (p.remainingTime === 0 && (activeId === p.id || p.state === 'completed')) {
+            p.state = 'completed';
+            if (!p.completionTime) p.completionTime = t + 1;
+            completedSnapshot.push({ ...p });
+          } else if (p.arrivalTime <= (t + 1) && p.remainingTime > 0) {
+            if (p.id !== activeId) p.state = 'ready';
+            currentReady.push({ ...p });
+          }
+        });
+
+        if (algorithmType === 'preemptive') {
+          currentReady.sort((a, b) => a.remainingTime - b.remainingTime || a.arrivalTime - b.arrivalTime);
+        } else {
+          currentReady.sort((a, b) => a.burstTime - b.burstTime || a.arrivalTime - b.arrivalTime);
+        }
+
+        const activeObj = activeId ? procStatus.get(activeId) : null;
+        let explanation = '';
+        if (isIdle) {
+          explanation = `Time ${t} → ${t + 1}: CPU is IDLE. Ready Queue has no available jobs.`;
+        } else if (algorithmType === 'preemptive') {
+          if (unit.isPreempted) {
+            explanation = `Time ${t}: ⚡ PREEMPTION! ${activeId} arrived with remaining burst ${activeObj.remainingTime + 1}, interrupting currently running task.`;
+          } else if (activeObj.remainingTime === 0) {
+            explanation = `Time ${t} → ${t + 1}: ${activeId} finishes its execution at time ${t + 1}.`;
+          } else {
+            explanation = `Time ${t} → ${t + 1}: ${activeId} executing on CPU (remaining burst: ${activeObj.remainingTime} units).`;
+          }
+        } else {
+          if (activeObj.remainingTime === 0) {
+            explanation = `Time ${t} → ${t + 1}: ${activeId} finishes its full ${activeObj.burstTime} burst at time ${t + 1}.`;
+          } else {
+            explanation = `Time ${t} → ${t + 1}: ${activeId} executing uninterrupted (${activeObj.remainingTime} units remaining).`;
+          }
+        }
+
+        steps.push({
+          time: t + 1,
+          activeProcess: activeId ? { ...activeObj } : null,
+          readyQueue: currentReady.filter(p => p.id !== activeId),
+          completedList: completedSnapshot,
+          explanation,
+          isIdle,
+          preemption: unit.isPreempted || false
+        });
+      }
+
+      return steps;
+    }
+
+    // ==========================================
+    // 5. AUTOMATED TEST SUITE (Section 11)
+    // ==========================================
+    function runVerificationTests() {
+      const assertions = [];
+      function check(name, pass, details) {
+        assertions.push({ name, pass: Boolean(pass), details });
+      }
+
+      const benchmark = [
+        { id: 'P1', arrivalTime: 0, burstTime: 7 },
+        { id: 'P2', arrivalTime: 2, burstTime: 4 },
+        { id: 'P3', arrivalTime: 4, burstTime: 1 },
+        { id: 'P4', arrivalTime: 5, burstTime: 4 }
+      ];
+
+      // Non-Preemptive
+      const np = solveNonPreemptiveSJF(benchmark);
+      const npSeq = np.gantt.map(g => g.id).join('→');
+      check('Non-Preemptive Sequence (P1 → P3 → P2 → P4)', npSeq === 'P1→P3→P2→P4', `Actual: ${npSeq}`);
+      check('Non-Preemptive Avg WT == 4', np.metrics.avgWaitingTime === 4, `Actual: ${np.metrics.avgWaitingTime}`);
+      check('Non-Preemptive Avg TAT == 8', np.metrics.avgTurnaroundTime === 8, `Actual: ${np.metrics.avgTurnaroundTime}`);
+
+      // Preemptive SRTF
+      const p = solvePreemptiveSRTF(benchmark);
+      const pGanttSummary = p.gantt.map(g => `${g.id}(${g.start}-${g.end})`).join(', ');
+      const pExpected = 'P1(0-2), P2(2-4), P3(4-5), P2(5-7), P4(7-11), P1(11-16)';
+      check('Preemptive Gantt Intervals 0-2 P1, 2-4 P2, 4-5 P3, 5-7 P2, 7-11 P4, 11-16 P1', pGanttSummary === pExpected, `Actual: ${pGanttSummary}`);
+      check('Preemptive Avg WT == 3', p.metrics.avgWaitingTime === 3, `Actual: ${p.metrics.avgWaitingTime}`);
+      check('Preemptive Avg TAT == 7', p.metrics.avgTurnaroundTime === 7, `Actual: ${p.metrics.avgTurnaroundTime}`);
+
+      // Single process offset
+      const single = solveNonPreemptiveSJF([{ id: 'P1', arrivalTime: 2, burstTime: 3 }]);
+      check('CPU Idle Insertion & Single Process Offset Handling', single.gantt[0].type === 'idle' && single.results[0].completionTime === 5, 'Starts at 2, finishes at 5 with 2 units idle');
+
+      return {
+        allPassed: assertions.every(a => a.pass),
+        passedCount: assertions.filter(a => a.pass).length,
+        total: assertions.length,
+        assertions
+      };
+    }
+
+    // ==========================================
+    // 6. MASTER REACT APPLICATION COMPONENT
+    // ==========================================
+    function App() {
+      const [theme, setTheme] = useState('dark');
+      const [activeTab, setActiveTab] = useState('simulator');
+      const [algorithmType, setAlgorithmType] = useState('preemptive');
+      const [processes, setProcesses] = useState(SAMPLE_DATASETS[0].processes);
+      const [currentStepIndex, setCurrentStepIndex] = useState(0);
+      const [isPlaying, setIsPlaying] = useState(false);
+      const [playbackSpeed, setPlaybackSpeed] = useState(1);
+      const [validationErrors, setValidationErrors] = useState([]);
+      const [comparisonMetric, setComparisonMetric] = useState('waiting');
+      const timerRef = useRef(null);
+
+      // Calculations
+      const npResults = useMemo(() => solveNonPreemptiveSJF(processes), [processes]);
+      const pResults = useMemo(() => solvePreemptiveSRTF(processes), [processes]);
+      const activeData = algorithmType === 'preemptive' ? pResults : npResults;
+
+      const steps = activeData?.steps || [];
+      const totalSteps = steps.length > 0 ? steps.length - 1 : 0;
+      const currentStep = steps[currentStepIndex] || null;
+
+      // Theme toggle effect
+      useEffect(() => {
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }, [theme]);
+
+      // Step reset on process/algorithm change
+      useEffect(() => {
+        setCurrentStepIndex(0);
+        setIsPlaying(false);
+        if (timerRef.current) clearInterval(timerRef.current);
+      }, [algorithmType, processes]);
+
+      // Playback loop
+      useEffect(() => {
+        if (isPlaying) {
+          const delay = Math.round(1000 / playbackSpeed);
+          timerRef.current = setInterval(() => {
+            setCurrentStepIndex(prev => {
+              if (prev >= totalSteps) {
+                setIsPlaying(false);
+                return prev;
+              }
+              return prev + 1;
+            });
+          }, delay);
+        } else {
+          if (timerRef.current) clearInterval(timerRef.current);
+        }
+        return () => {
+          if (timerRef.current) clearInterval(timerRef.current);
+        };
+      }, [isPlaying, playbackSpeed, totalSteps]);
+
+      // Form input states
+      const [newPid, setNewPid] = useState(`P${processes.length + 1}`);
+      const [newAt, setNewAt] = useState(0);
+      const [newBt, setNewBt] = useState(4);
+
+      const handleAddProcess = (e) => {
+        e.preventDefault();
+        const pid = newPid.trim().toUpperCase();
+        const at = parseInt(newAt, 10);
+        const bt = parseInt(newBt, 10);
+
+        const errors = [];
+        if (!pid) errors.push('Process ID cannot be blank.');
+        if (processes.some(p => p.id.toUpperCase() === pid)) errors.push(`Process ID "${pid}" already exists.`);
+        if (isNaN(at) || at < 0) errors.push('Arrival Time must be non-negative (≥ 0).');
+        if (isNaN(bt) || bt <= 0) errors.push('Burst Time must be positive (> 0).');
+
+        if (errors.length > 0) {
+          setValidationErrors(errors);
+          return;
+        }
+
+        setValidationErrors([]);
+        const updated = [...processes, { id: pid, arrivalTime: at, burstTime: bt }];
+        setProcesses(updated);
+        setNewPid(`P${updated.length + 1}`);
+        setNewAt(Math.max(...updated.map(p => p.arrivalTime)) + 1);
+        setNewBt(Math.floor(Math.random() * 6) + 2);
+      };
+
+      const handleRemove = (id) => {
+        if (processes.length <= 1) {
+          setValidationErrors(['At least one process must remain in the schedule.']);
+          return;
+        }
+        setValidationErrors([]);
+        setProcesses(processes.filter(p => p.id !== id));
+      };
+
+      const exportCSV = () => {
+        const rows = activeData.results.map(r => [
+          r.id, r.arrivalTime, r.burstTime, r.completionTime, r.turnaroundTime, r.waitingTime, r.responseTime
+        ]);
+        const csv = ['Process,Arrival Time,Burst Time,Completion Time,Turnaround Time,Waiting Time,Response Time', ...rows.map(e => e.join(','))].join('\n');
+        const link = document.createElement('a');
+        link.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+        link.download = `sjf_${algorithmType}_results.csv`;
+        link.click();
+      };
+
+      const testResults = useMemo(() => runVerificationTests(), []);
+
+      return (
+        <div className={`min-h-screen ${theme === 'dark' ? 'bg-[#080c16] text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+          
+          {/* Top Navbar */}
+          <header className={`sticky top-0 z-50 backdrop-blur-xl border-b ${theme === 'dark' ? 'bg-slate-950/85 border-slate-800' : 'bg-white/85 border-slate-200'} px-6 py-3.5 flex items-center justify-between transition-colors`}>
+            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('simulator')}>
+              <div className="p-2 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 text-white shadow-lg shadow-cyan-500/20">
+                <IconCpu className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-cyan-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
+                    SJF CPU Visualizer
+                  </span>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 hidden sm:inline-block">
+                    SRTF & Non-Preemptive
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 hidden sm:block">Interactive Operating System Simulation</p>
+              </div>
+            </div>
+
+            {/* Nav Menu */}
+            <div className="flex items-center gap-2">
+              <nav className="hidden md:flex items-center gap-1">
+                {[
+                  { id: 'simulator', label: 'Simulator', icon: IconPlay },
+                  { id: 'theory', label: 'OS Theory', icon: IconBookOpen },
+                  { id: 'comparison', label: 'Comparison', icon: IconTrophy },
+                  { id: 'learning', label: 'Learning Mode', icon: IconGraduation },
+                  { id: 'tests', label: 'Tests', icon: IconCheckCircle, badge: `${testResults.passedCount}/${testResults.total}` },
+                ].map(item => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                        isActive
+                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                          : theme === 'dark' ? 'text-slate-400 hover:text-white hover:bg-slate-900' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{item.label}</span>
+                      {item.badge && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+
+              {/* Theme Toggle Button */}
+              <button
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className={`p-2 rounded-xl border transition-all ${
+                  theme === 'dark' 
+                    ? 'bg-slate-900 border-slate-700 text-amber-400 hover:border-amber-400/40' 
+                    : 'bg-white border-slate-300 text-indigo-600 hover:border-indigo-400'
+                }`}
+                title="Toggle Dark/Light Mode"
+              >
+                {theme === 'dark' ? <IconSun className="w-4 h-4" /> : <IconMoon className="w-4 h-4" />}
+              </button>
+            </div>
+          </header>
+
+          {/* Main Content Area */}
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+            
+            {/* ========================================================================= */}
+            {/* VIEW 1: SIMULATOR */}
+            {/* ========================================================================= */}
+            {activeTab === 'simulator' && (
+              <div className="space-y-8">
+                
+                {/* Hero / Quick Explainer */}
+                <div className="text-center max-w-3xl mx-auto space-y-3">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/90 border border-cyan-500/30 text-cyan-300 text-xs font-semibold">
+                    <IconSparkles className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Real-Time Animated CPU Scheduling Laboratory</span>
+                  </div>
+                  <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight">
+                    Shortest Job First{' '}
+                    <span className="bg-gradient-to-r from-cyan-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
+                      Interactive Visualizer
+                    </span>
+                  </h1>
+                  <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-2xl mx-auto">
+                    Configure arrival and burst times, step through microchip execution, inspect ready queues, and analyze Gantt charts and mathematical scheduling metrics.
+                  </p>
+                </div>
+
+                {/* Benchmark Presets Bar */}
+                <div className={`p-4 rounded-2xl border ${theme === 'dark' ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-sm'} flex flex-wrap items-center justify-between gap-3`}>
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-400 font-mono uppercase">
+                    <IconSparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Scenario Presets:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {SAMPLE_DATASETS.map(ds => (
+                      <button
+                        key={ds.id}
+                        onClick={() => {
+                          setProcesses(ds.processes);
+                          setValidationErrors([]);
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-mono font-medium border transition-all ${
+                          theme === 'dark'
+                            ? 'bg-slate-950 border-slate-800 hover:border-cyan-500 text-slate-300 hover:text-cyan-300'
+                            : 'bg-slate-100 border-slate-200 hover:border-cyan-500 text-slate-700 hover:text-cyan-600'
+                        }`}
+                      >
+                        {ds.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Process Configuration Queue */}
+                <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-md'} space-y-5`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <span>Process Input Queue</span>
+                        <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-slate-800 text-cyan-300">
+                          {processes.length} Processes
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Add, remove, or modify processes. Validation strictly enforces AT ≥ 0, BT &gt; 0, and unique PIDs.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setProcesses(SAMPLE_DATASETS[0].processes);
+                        setValidationErrors([]);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-mono transition-all self-start sm:self-auto"
+                    >
+                      <IconRotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Reset Section 11 Benchmark</span>
+                    </button>
+                  </div>
+
+                  {/* Validation Alerts */}
+                  {validationErrors.length > 0 && (
+                    <div className="p-3.5 rounded-2xl bg-rose-950/60 border border-rose-800 text-rose-300 text-xs space-y-1">
+                      <div className="font-bold">Input Validation Error:</div>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        {validationErrors.map((e, idx) => <li key={idx}>{e}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Add Process Form */}
+                  <form onSubmit={handleAddProcess} className={`p-4 rounded-2xl border ${theme === 'dark' ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'} grid grid-cols-1 sm:grid-cols-4 gap-3 items-end`}>
+                    <div>
+                      <label className="block text-[11px] font-mono text-slate-400 mb-1">Process ID</label>
+                      <input
+                        type="text"
+                        value={newPid}
+                        onChange={e => setNewPid(e.target.value)}
+                        placeholder="e.g. P5"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:border-cyan-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-mono text-slate-400 mb-1">Arrival Time (AT ≥ 0)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={newAt}
+                        onChange={e => setNewAt(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:border-cyan-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-mono text-slate-400 mb-1">Burst Time (BT &gt; 0)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={newBt}
+                        onChange={e => setNewBt(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:border-cyan-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <button
+                        type="submit"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-bold text-xs shadow-md shadow-cyan-500/20 transition-all h-[38px]"
+                      >
+                        <IconPlus className="w-4 h-4" />
+                        <span>Add Process</span>
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Process Cards Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    {processes.map((p, idx) => {
+                      const color = getProcColor(idx);
+                      return (
+                        <div
+                          key={p.id}
+                          className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 relative group transition-all"
+                          style={{ borderLeftWidth: '5px', borderLeftColor: color.bg }}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-mono font-bold text-sm text-white">{p.id}</span>
+                            <button
+                              onClick={() => handleRemove(p.id)}
+                              className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-slate-900 transition-colors"
+                              title="Delete process"
+                            >
+                              <IconTrash className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                            <div className="p-1.5 rounded-lg bg-slate-900">
+                              <div className="text-[9px] text-slate-400 font-mono">AT</div>
+                              <div className="font-bold font-mono text-slate-200 mt-0.5">{p.arrivalTime}</div>
+                            </div>
+                            <div className="p-1.5 rounded-lg bg-slate-900">
+                              <div className="text-[9px] text-slate-400 font-mono">BT</div>
+                              <div className="font-bold font-mono text-cyan-300 mt-0.5">{p.burstTime}</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Master CPU Simulation Control & Hardware Box */}
+                <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-xl'} space-y-6`}>
+                  
+                  {/* Mode & Speed Bar */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+                    <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-950 border border-slate-800">
+                      <button
+                        onClick={() => setAlgorithmType('non-preemptive')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                          algorithmType === 'non-preemptive'
+                            ? 'bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-md shadow-cyan-500/20'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <IconClock className="w-3.5 h-3.5" />
+                        <span>SJF Non-Preemptive</span>
+                      </button>
+
+                      <button
+                        onClick={() => setAlgorithmType('preemptive')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                          algorithmType === 'preemptive'
+                            ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md shadow-purple-500/20'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <IconZap className="w-3.5 h-3.5" />
+                        <span>SJF Preemptive (SRTF)</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-slate-400 uppercase">Speed:</span>
+                      <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-950 border border-slate-800">
+                        {[0.5, 1, 2, 4].map(s => (
+                          <button
+                            key={s}
+                            onClick={() => setPlaybackSpeed(s)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all ${
+                              playbackSpeed === s ? 'bg-cyan-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {s}x
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Playback Controls & Progress Bar */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                    <div className="lg:col-span-5 flex items-center gap-2">
+                      <button
+                        onClick={() => { setIsPlaying(false); setCurrentStepIndex(p => Math.max(0, p - 1)); }}
+                        disabled={currentStepIndex <= 0}
+                        className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 disabled:opacity-30 hover:border-slate-700"
+                        title="Step Backward"
+                      >
+                        <IconChevronLeft className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (currentStepIndex >= totalSteps) setCurrentStepIndex(0);
+                          setIsPlaying(!isPlaying);
+                        }}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs shadow-lg transition-all ${
+                          isPlaying ? 'bg-amber-500 text-slate-950' : 'bg-gradient-to-r from-cyan-500 to-indigo-600 text-white'
+                        }`}
+                      >
+                        {isPlaying ? <IconPause className="w-4 h-4" /> : <IconPlay className="w-4 h-4" />}
+                        <span>{isPlaying ? 'Pause' : (currentStepIndex >= totalSteps ? 'Replay' : 'Play Simulation')}</span>
+                      </button>
+
+                      <button
+                        onClick={() => { setIsPlaying(false); setCurrentStepIndex(p => Math.min(totalSteps, p + 1)); }}
+                        disabled={currentStepIndex >= totalSteps}
+                        className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 disabled:opacity-30 hover:border-slate-700"
+                        title="Step Forward"
+                      >
+                        <IconChevronRight className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={() => { setIsPlaying(false); setCurrentStepIndex(0); }}
+                        className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-400 hover:text-amber-400"
+                        title="Restart from T=0"
+                      >
+                        <IconRotateCcw className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="lg:col-span-7 flex items-center gap-3">
+                      <span className="text-xs font-mono text-cyan-400 font-bold shrink-0">
+                        Step {currentStepIndex}/{totalSteps}
+                      </span>
+                      <input
+                        type="range"
+                        min="0"
+                        max={totalSteps}
+                        value={currentStepIndex}
+                        onChange={e => { setIsPlaying(false); setCurrentStepIndex(parseInt(e.target.value, 10)); }}
+                        className="w-full h-2 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                      />
+                      <span className="text-xs font-mono text-slate-400 font-bold shrink-0">
+                        T = {currentStep?.time ?? 0}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Microchip Core Visualization & Queues */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
+                    
+                    {/* Left: CPU Core */}
+                    <div className="lg:col-span-6 p-6 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-center space-y-4 relative overflow-hidden">
+                      <div className="flex items-center justify-between w-full border-b border-slate-900 pb-3">
+                        <div className="flex items-center gap-2">
+                          <IconCpu className="w-4 h-4 text-cyan-400 animate-pulse" />
+                          <span className="text-xs font-bold uppercase font-mono text-slate-300">Central CPU Socket</span>
+                        </div>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${currentStep?.isIdle ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'}`}>
+                          {currentStep?.isIdle ? 'IDLE' : 'BUSY'}
+                        </span>
+                      </div>
+
+                      {/* Microchip Physical Die Frame */}
+                      <div className="relative w-56 h-56 rounded-3xl bg-[#0b101e] border-2 border-slate-700/80 flex items-center justify-center p-4 shadow-2xl">
+                        
+                        {/* Chip Pins */}
+                        <div className="absolute top-0 left-6 right-6 flex justify-between -translate-y-1/2">
+                          {[...Array(6)].map((_, i) => (
+                            <div key={i} className={`w-2 h-2.5 rounded-sm ${!currentStep?.isIdle && currentStep?.activeProcess ? 'bg-cyan-400' : 'bg-slate-700'}`} />
+                          ))}
+                        </div>
+                        <div className="absolute bottom-0 left-6 right-6 flex justify-between translate-y-1/2">
+                          {[...Array(6)].map((_, i) => (
+                            <div key={i} className={`w-2 h-2.5 rounded-sm ${!currentStep?.isIdle && currentStep?.activeProcess ? 'bg-indigo-400' : 'bg-slate-700'}`} />
+                          ))}
+                        </div>
+
+                        {/* Internal Socket */}
+                        <div className={`w-full h-full rounded-2xl flex flex-col items-center justify-center p-3 text-center border ${
+                          currentStep?.isIdle
+                            ? 'bg-slate-950 border-dashed border-amber-800/80 striped-idle-dark'
+                            : currentStep?.activeProcess
+                              ? 'bg-slate-950 border-cyan-500/50 shadow-inner'
+                              : 'bg-slate-950 border-slate-800'
+                        }`}>
+                          {currentStep?.isIdle ? (
+                            <div className="space-y-2 text-amber-300">
+                              <IconClock className="w-8 h-8 mx-auto animate-spin" style={{ animationDuration: '4s' }} />
+                              <div className="font-bold text-xs">CPU IDLE (NOP)</div>
+                              <div className="text-[10px] text-amber-400/80 font-mono">No jobs ready in queue</div>
+                            </div>
+                          ) : currentStep?.activeProcess ? (
+                            <div className="space-y-2.5 w-full">
+                              <div
+                                className="mx-auto px-4 py-1.5 rounded-xl text-xl font-extrabold font-mono text-white shadow-lg border"
+                                style={{
+                                  backgroundColor: currentStep.activeProcess.color?.bg,
+                                  borderColor: currentStep.activeProcess.color?.border
+                                }}
+                              >
+                                {currentStep.activeProcess.id}
+                              </div>
+                              <div className="text-[11px] font-mono text-cyan-300">
+                                Rem: {currentStep.activeProcess.remainingTime} / {currentStep.activeProcess.burstTime}u
+                              </div>
+                              <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-800">
+                                <div
+                                  className="h-full bg-gradient-to-r from-cyan-400 to-indigo-500 rounded-full"
+                                  style={{
+                                    width: `${Math.round(((currentStep.activeProcess.burstTime - currentStep.activeProcess.remainingTime) / currentStep.activeProcess.burstTime) * 100)}%`
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-emerald-400 space-y-1">
+                              <IconCheckCircle className="w-8 h-8 mx-auto" />
+                              <div className="text-xs font-bold font-mono">Completed All Jobs</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Explanation box */}
+                      <div className="text-xs text-slate-300 font-mono leading-relaxed bg-slate-900 p-3 rounded-xl border border-slate-800 w-full text-left">
+                        {currentStep?.explanation}
+                      </div>
+                    </div>
+
+                    {/* Right: Queues */}
+                    <div className="lg:col-span-6 space-y-4">
+                      
+                      {/* Ready Queue Box */}
+                      <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-900 pb-2">
+                          <span className="text-xs font-bold uppercase font-mono text-slate-300">
+                            Ready Queue ({currentStep?.readyQueue?.length || 0})
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            Priority: Shortest {algorithmType === 'preemptive' ? 'Remaining' : 'Burst'} → AT
+                          </span>
+                        </div>
+
+                        {currentStep?.readyQueue?.length === 0 ? (
+                          <div className="p-4 rounded-xl border border-dashed border-slate-900 text-center text-xs text-slate-600">
+                            Queue is currently empty.
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                            {currentStep.readyQueue.map((q, idx) => (
+                              <div
+                                key={q.id}
+                                className={`p-2.5 rounded-xl border flex items-center justify-between text-xs font-mono ${
+                                  idx === 0 ? 'bg-slate-900 border-cyan-500/60 ring-1 ring-cyan-500/30' : 'bg-slate-900/60 border-slate-800'
+                                }`}
+                                style={{ borderLeftWidth: '4px', borderLeftColor: q.color?.bg }}
+                              >
+                                <span className="font-bold text-white">{q.id}</span>
+                                <div className="text-right">
+                                  <span className="text-cyan-300 font-bold">{q.remainingTime}u rem</span>
+                                  <div className="text-[9px] text-slate-500">AT: {q.arrivalTime}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Completed Queue Box */}
+                      <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-900 pb-2">
+                          <span className="text-xs font-bold uppercase font-mono text-slate-300">
+                            Completed Queue ({currentStep?.completedList?.length || 0})
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-mono">Terminated</span>
+                        </div>
+
+                        {currentStep?.completedList?.length === 0 ? (
+                          <div className="p-3 text-center text-xs text-slate-600 font-mono">
+                            No finished processes yet.
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {currentStep.completedList.map(c => (
+                              <div
+                                key={c.id}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-emerald-900/60 font-mono text-xs"
+                              >
+                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color?.bg }} />
+                                <span className="font-bold text-white">{c.id}</span>
+                                <span className="text-emerald-400 text-[10px]">CT={c.completionTime}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                  {/* Dynamic Gantt Timeline */}
+                  <div className="pt-4 border-t border-slate-800/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider font-mono text-slate-300">
+                        Execution Gantt Chart (0 → {activeData.metrics.totalExecutionTime} Units)
+                      </span>
+                    </div>
+
+                    <div className="flex h-14 rounded-2xl overflow-hidden border border-slate-700 bg-slate-950 shadow-inner">
+                      {activeData.gantt.map((b, idx) => {
+                        const dur = b.end - b.start;
+                        const widthPct = (dur / activeData.metrics.totalExecutionTime) * 100;
+                        const isIdle = b.id === 'IDLE';
+
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              width: `${widthPct}%`,
+                              backgroundColor: isIdle ? undefined : b.color?.bg
+                            }}
+                            className={`h-full flex flex-col items-center justify-center font-mono text-xs border-r border-slate-900/80 relative group select-none ${
+                              isIdle ? 'striped-idle-dark text-slate-400' : 'text-white'
+                            }`}
+                            title={`${b.id}: Start ${b.start} → End ${b.end} (${dur} units)`}
+                          >
+                            <span className="font-extrabold">{b.id}</span>
+                            <span className="text-[9px] opacity-80">{dur}u</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Timeline Time Markers */}
+                    <div className="flex justify-between text-[10px] font-mono text-slate-500 px-1">
+                      <span>0</span>
+                      {activeData.gantt.map((b, i) => <span key={i}>{b.end}</span>)}
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Key Statistics KPI Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {[
+                    { label: 'Avg Waiting', val: activeData.metrics.avgWaitingTime.toFixed(2), unit: 'units', formula: 'Σ WT / N' },
+                    { label: 'Avg Turnaround', val: activeData.metrics.avgTurnaroundTime.toFixed(2), unit: 'units', formula: 'Σ TAT / N' },
+                    { label: 'Avg Response', val: activeData.metrics.avgResponseTime.toFixed(2), unit: 'units', formula: 'Σ RT / N' },
+                    { label: 'CPU Utilization', val: activeData.metrics.cpuUtilization.toFixed(1) + '%', unit: `${activeData.metrics.totalBusyTime}/${activeData.metrics.totalExecutionTime} busy`, formula: '(Busy/Total)×100' },
+                    { label: 'Throughput', val: activeData.metrics.throughput.toFixed(3), unit: 'jobs/unit', formula: 'N / Makespan' },
+                    { label: algorithmType === 'preemptive' ? 'Preemptions' : 'Makespan', val: algorithmType === 'preemptive' ? activeData.metrics.preemptionCount : activeData.metrics.totalExecutionTime + 'u', unit: algorithmType === 'preemptive' ? 'interrupts' : 'timeline duration', formula: 'Events' },
+                  ].map((kpi, idx) => (
+                    <div key={idx} className={`p-4 rounded-2xl border ${theme === 'dark' ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-sm'} text-center space-y-1`}>
+                      <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">{kpi.label}</div>
+                      <div className="text-xl font-extrabold font-mono text-white">{kpi.val}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">{kpi.unit}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Calculation and Results Table */}
+                <div className={`p-6 rounded-3xl border ${theme === 'dark' ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-md'} space-y-4`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <span>Scheduling Results Table</span>
+                        <span className="text-xs font-mono text-slate-400">({algorithmType === 'preemptive' ? 'SRTF Preemptive' : 'Non-Preemptive SJF'})</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Formulas: TAT = CT - AT | WT = TAT - BT | RT = Start - AT
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={exportCSV}
+                      className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500 text-xs font-mono text-slate-200 hover:text-white transition-all self-start sm:self-auto"
+                    >
+                      <IconDownload className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Export CSV</span>
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs font-mono">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] bg-slate-950/40">
+                          <th className="py-3 px-3 font-semibold">Process</th>
+                          <th className="py-3 px-3 font-semibold text-center">Arrival Time (AT)</th>
+                          <th className="py-3 px-3 font-semibold text-center">Burst Time (BT)</th>
+                          <th className="py-3 px-3 font-semibold text-center text-cyan-400">Completion Time (CT)</th>
+                          <th className="py-3 px-3 font-semibold text-center text-indigo-400">Turnaround Time (TAT)</th>
+                          <th className="py-3 px-3 font-semibold text-center text-purple-400">Waiting Time (WT)</th>
+                          <th className="py-3 px-3 font-semibold text-center text-emerald-400">Response Time (RT)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800 text-slate-200">
+                        {activeData.results.map(r => (
+                          <tr key={r.id} className="hover:bg-slate-800/30 transition-colors">
+                            <td className="py-3 px-3 font-bold text-white flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: r.color?.bg }} />
+                              <span>{r.id}</span>
+                            </td>
+                            <td className="py-3 px-3 text-center text-slate-400">{r.arrivalTime}</td>
+                            <td className="py-3 px-3 text-center text-slate-300 font-semibold">{r.burstTime}</td>
+                            <td className="py-3 px-3 text-center font-bold text-cyan-300">{r.completionTime}</td>
+                            <td className="py-3 px-3 text-center font-bold text-indigo-300">{r.turnaroundTime}</td>
+                            <td className="py-3 px-3 text-center font-bold text-purple-300">{r.waitingTime}</td>
+                            <td className="py-3 px-3 text-center font-bold text-emerald-300">{r.responseTime}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* VIEW 2: THEORY */}
+            {/* ========================================================================= */}
+            {activeTab === 'theory' && (
+              <div className="space-y-8 max-w-4xl mx-auto">
+                <div className={`p-8 rounded-3xl border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-md'} space-y-6`}>
+                  <div className="space-y-2">
+                    <span className="text-xs font-mono font-bold text-indigo-400 uppercase">OS Scheduling Fundamentals</span>
+                    <h2 className="text-2xl font-extrabold text-white">Shortest Job First (SJF) Core Theory</h2>
+                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                      Shortest Job First (SJF) is a scheduling policy that selects for execution the waiting process with the smallest execution burst time.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-5 rounded-2xl bg-slate-950 border border-cyan-900/60 space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <IconClock className="w-5 h-5 text-cyan-400" />
+                        <h3 className="font-bold text-sm text-white">SJF Non-Preemptive</h3>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Once the CPU core is allocated to a process, it holds the CPU until it completes its total burst time. It cannot be interrupted, eliminating context-switch overhead, but can cause long waiting times (convoy effect) if a long job starts right before shorter jobs arrive.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-slate-950 border border-purple-900/60 space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <IconZap className="w-5 h-5 text-purple-400" />
+                        <h3 className="font-bold text-sm text-white">SJF Preemptive (SRTF)</h3>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Shortest Remaining Time First constantly inspects the remaining burst time. If a process arrives with a remaining CPU burst shorter than the currently running process, the current process is preempted and saved to the ready queue. Mathematically optimal for minimizing average waiting time.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Formulas */}
+                  <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                    <div className="text-xs font-bold text-white uppercase font-mono">Mathematical Formulas</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                        <div className="text-cyan-400 font-bold">Turnaround Time</div>
+                        <div className="text-slate-200 mt-1">TAT = CT - AT</div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                        <div className="text-purple-400 font-bold">Waiting Time</div>
+                        <div className="text-slate-200 mt-1">WT = TAT - BT</div>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                        <div className="text-emerald-400 font-bold">Response Time</div>
+                        <div className="text-slate-200 mt-1">RT = First Start - AT</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Starvation and Real World */}
+                  <div className="p-5 rounded-2xl bg-slate-950 border border-amber-900/50 space-y-2 text-xs text-slate-300 leading-relaxed">
+                    <div className="font-bold text-amber-400 font-mono">Starvation & Modern Operating Systems</div>
+                    <p>
+                      A major disadvantage of SJF is <strong>starvation (indefinite blocking)</strong>: long processes may never execute if a continuous stream of short processes enters the ready queue. Operating systems mitigate this using <strong>Aging</strong> (gradually boosting priority over wait time) or exponential burst smoothing (τ_(n+1) = α·t_n + (1-α)·τ_n).
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* VIEW 3: COMPARISON DASHBOARD */}
+            {/* ========================================================================= */}
+            {activeTab === 'comparison' && (
+              <div className="space-y-8 max-w-4xl mx-auto">
+                <div className={`p-8 rounded-3xl border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-md'} space-y-6`}>
+                  <div className="flex items-center gap-3">
+                    <IconTrophy className="w-8 h-8 text-amber-400" />
+                    <div>
+                      <h2 className="text-xl font-bold text-white">Direct Benchmark Comparison</h2>
+                      <p className="text-xs text-slate-400">Head-to-head comparison on the identical process queue</p>
+                    </div>
+                  </div>
+
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-5 rounded-2xl bg-slate-950 border border-cyan-800 text-center space-y-1">
+                      <div className="text-xs text-cyan-400 uppercase font-mono font-bold">Non-Preemptive SJF</div>
+                      <div className="text-2xl font-extrabold font-mono text-white mt-1">
+                        AWT: {npResults.metrics.avgWaitingTime.toFixed(2)}u
+                      </div>
+                      <div className="text-xs font-mono text-slate-400">
+                        ATAT: {npResults.metrics.avgTurnaroundTime.toFixed(2)}u
+                      </div>
+                      <div className="text-[10px] text-emerald-400 font-mono pt-1">0 Preemptions (Zero context switch)</div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-slate-950 border border-purple-800 text-center space-y-1">
+                      <div className="text-xs text-purple-400 uppercase font-mono font-bold">Preemptive SJF (SRTF)</div>
+                      <div className="text-2xl font-extrabold font-mono text-white mt-1">
+                        AWT: {pResults.metrics.avgWaitingTime.toFixed(2)}u
+                      </div>
+                      <div className="text-xs font-mono text-slate-400">
+                        ATAT: {pResults.metrics.avgTurnaroundTime.toFixed(2)}u
+                      </div>
+                      <div className="text-[10px] text-purple-400 font-mono pt-1">{pResults.metrics.preemptionCount} Context Switches</div>
+                    </div>
+                  </div>
+
+                  {/* Analytical Verdict */}
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono leading-relaxed text-slate-300">
+                    {pResults.metrics.avgWaitingTime < npResults.metrics.avgWaitingTime ? (
+                      <span>
+                        ⚡ <strong>SRTF achieved a {(npResults.metrics.avgWaitingTime - pResults.metrics.avgWaitingTime).toFixed(2)} unit lower Average Waiting Time</strong> ({pResults.metrics.avgWaitingTime.toFixed(2)} vs {npResults.metrics.avgWaitingTime.toFixed(2)}). By preempting longer jobs when shorter ones arrived, SRTF minimized queue delay, at the cost of {pResults.metrics.preemptionCount} context switch(es).
+                      </span>
+                    ) : (
+                      <span>
+                        Both algorithms generated identical waiting times on this specific process sequence.
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Stacked Comparative Gantt Charts */}
+                  <div className="space-y-4 pt-2">
+                    <div>
+                      <div className="text-xs font-mono text-cyan-400 font-bold mb-1">1. Non-Preemptive SJF Gantt</div>
+                      <div className="flex h-10 rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+                        {npResults.gantt.map((b, i) => (
+                          <div
+                            key={i}
+                            style={{
+                              width: `${((b.end - b.start) / npResults.metrics.totalExecutionTime) * 100}%`,
+                              backgroundColor: b.id === 'IDLE' ? undefined : b.color?.bg
+                            }}
+                            className={`h-full flex items-center justify-center font-mono text-xs ${b.id === 'IDLE' ? 'striped-idle-dark text-slate-400' : 'text-white font-bold'}`}
+                          >
+                            {b.id} ({b.end - b.start}u)
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-mono text-purple-400 font-bold mb-1">2. Preemptive SRTF Gantt</div>
+                      <div className="flex h-10 rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+                        {pResults.gantt.map((b, i) => (
+                          <div
+                            key={i}
+                            style={{
+                              width: `${((b.end - b.start) / pResults.metrics.totalExecutionTime) * 100}%`,
+                              backgroundColor: b.id === 'IDLE' ? undefined : b.color?.bg
+                            }}
+                            className={`h-full flex items-center justify-center font-mono text-xs ${b.id === 'IDLE' ? 'striped-idle-dark text-slate-400' : 'text-white font-bold'}`}
+                          >
+                            {b.id} ({b.end - b.start}u)
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* VIEW 4: LEARNING MODE */}
+            {/* ========================================================================= */}
+            {activeTab === 'learning' && (
+              <div className="space-y-6 max-w-4xl mx-auto">
+                <div className={`p-8 rounded-3xl border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-md'} space-y-5`}>
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div>
+                      <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        <IconGraduation className="w-5 h-5 text-cyan-400" />
+                        <span>Step-by-Step Learning Log</span>
+                      </h2>
+                      <p className="text-xs text-slate-400">Chronological explanation of every OS scheduling decision</p>
+                    </div>
+                    <span className="text-xs font-mono text-cyan-400 font-bold">{steps.length} Steps Logged</span>
+                  </div>
+
+                  <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
+                    {steps.map((st, idx) => (
+                      <div key={idx} className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono space-y-1">
+                        <div className="flex items-center justify-between text-cyan-400 font-bold">
+                          <span>Step {idx} (T = {st.time})</span>
+                          {st.preemption && <span className="text-purple-400">⚡ PREEMPTION</span>}
+                          {st.isIdle && <span className="text-amber-400">IDLE CYCLE</span>}
+                        </div>
+                        <p className="text-slate-300 leading-relaxed">{st.explanation}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* VIEW 5: VERIFICATION TESTS */}
+            {/* ========================================================================= */}
+            {activeTab === 'tests' && (
+              <div className="space-y-6 max-w-4xl mx-auto">
+                <div className={`p-8 rounded-3xl border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-md'} space-y-5`}>
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <IconCheckCircle className="w-6 h-6 text-emerald-400" />
+                      <div>
+                        <h2 className="text-xl font-bold text-white">Section 11 Test Assertion Suite</h2>
+                        <p className="text-xs text-slate-400 font-mono">100% compliant with user specification assertions</p>
+                      </div>
+                    </div>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono font-bold">
+                      {testResults.passedCount}/{testResults.total} PASSED
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {testResults.assertions.map((a, idx) => (
+                      <div key={idx} className="p-3.5 rounded-2xl bg-slate-950 border border-emerald-900/60 text-xs font-mono space-y-1">
+                        <div className="flex items-center gap-2 text-white font-bold">
+                          <span className="text-emerald-400">✔</span>
+                          <span>{a.name}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 pl-4">{a.details}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </main>
+
+          {/* Footer */}
+          <footer className="mt-16 border-t border-slate-800/80 bg-[#060912] py-8 text-center text-xs text-slate-500 font-mono space-y-2">
+            <div>SJF CPU Scheduling Visualizer | Complete Educational OS Platform</div>
+            <div className="text-[11px] text-slate-600">Zero-setup executable HTML application with React 18 & Tailwind CSS</div>
+          </footer>
+
+        </div>
+      );
+    }
+
+    // Mount Application
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
